@@ -6,6 +6,7 @@ namespace Survos\QuickbaseBundle\Tests;
 
 use Survos\Kit\SurvosKitBundle;
 use Survos\QuickbaseBundle\SurvosQuickbaseBundle;
+use Survos\RecordStoreBundle\SurvosRecordStoreBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -19,6 +20,7 @@ final class TestKernel extends Kernel
     {
         yield new FrameworkBundle();
         yield new SurvosKitBundle();
+        yield new SurvosRecordStoreBundle();
         yield new SurvosQuickbaseBundle();
     }
 
@@ -26,6 +28,10 @@ final class TestKernel extends Kernel
     {
         $loader->load(function (ContainerBuilder $container): void {
             $container->loadFromExtension('framework', ['secret' => 'test', 'test' => true, 'http_client' => []]);
+            $container->loadFromExtension('survos_record_store', [
+                'connections' => ['quickbase' => ['driver' => 'quickbase']],
+                'applications' => [],
+            ]);
             $container->loadFromExtension('survos_quickbase', [
                 'realm' => 'example.quickbase.com',
                 'token' => 'test-token',

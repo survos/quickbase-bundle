@@ -6,8 +6,10 @@ namespace Survos\QuickbaseBundle;
 
 use Survos\Kit\AbstractSurvosBundle;
 use Survos\Kit\SurvosKitBundle;
+use Survos\QuickbaseBundle\Adapter\QuickbaseAdapterFactory;
 use Survos\QuickbaseBundle\Client\QuickbaseClient;
 use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
+use Survos\RecordStoreBundle\SurvosRecordStoreBundle;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Kernel\RequiredBundle;
@@ -16,6 +18,7 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 #[RequiredBundle(SurvosKitBundle::class)]
+#[RequiredBundle(SurvosRecordStoreBundle::class)]
 // Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
 final class SurvosQuickbaseBundle extends AbstractSurvosBundle
 {
@@ -74,6 +77,8 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
         $services->set(QuickbaseAppRegistry::class)
             ->arg('$apps', $config['apps'])
             ->public();
+        $services->set(QuickbaseAdapterFactory::class)
+            ->tag('survos_record_store.adapter_factory');
     }
 
     public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void

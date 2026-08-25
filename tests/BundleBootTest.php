@@ -43,5 +43,7 @@ final class BundleBootTest extends KernelTestCase
         self::assertArrayHasKey('quickbase:apps', $commands);
         self::assertArrayHasKey('quickbase:tables', $commands);
         self::assertArrayHasKey('quickbase:fields', $commands);
+        self::assertArrayHasKey('quickbase:relationships', $commands);
+        self::assertArrayHasKey('quickbase:query', $commands);
     }
 }

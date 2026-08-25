@@ -42,6 +42,100 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         return self::objectList($this->request('GET', 'fields', ['query' => $query]));
     }
 
+    public function relationships(string $tableId, int $skip = 0): array
+    {
+        self::requireId($tableId, 'table');
+        if ($skip < 0) {
+            throw new \InvalidArgumentException('The Quickbase relationship skip cannot be negative.');
+        }
+
+        $result = $this->request('GET', sprintf('tables/%s/relationships', rawurlencode($tableId)), [
+            'query' => ['skip' => $skip],
+        ]);
+        $metadata = $result['metadata'] ?? null;
+        $relationships = $result['relationships'] ?? null;
+        if (!is_array($metadata) || !is_array($relationships)) {
+            throw new \UnexpectedValueException('Quickbase returned an invalid relationships response.');
+        }
+
+        return [
+            'metadata' => self::object($metadata),
+            'relationships' => self::objectList($relationships),
+        ];
+    }
+
+    public function queryRecords(
+        string $tableId,
+        array $select = [],
+        ?string $where = null,
+        array $sortBy = [],
+        int $skip = 0,
+        int $top = 100,
+    ): array {
+        self::requireId($tableId, 'table');
+        if ($skip < 0) {
+            throw new \InvalidArgumentException('The Quickbase record skip cannot be negative.');
+        }
+        if ($top < 1) {
+            throw new \InvalidArgumentException('The Quickbase record limit must be at least 1.');
+        }
+
+        $payload = [
+            'from' => $tableId,
+            'options' => ['skip' => $skip, 'top' => $top],
+        ];
+        if ([] !== $select) {
+            $payload['select'] = self::positiveFieldIds($select);
+        }
+        if (null !== $where && '' !== trim($where)) {
+            $payload['where'] = $where;
+        }
+        if ([] !== $sortBy) {
+            foreach ($sortBy as $sort) {
+                if ($sort['fieldId'] < 1 || !in_array($sort['order'], ['ASC', 'DESC'], true)) {
+                    throw new \InvalidArgumentException('Each Quickbase sort must contain a positive fieldId and ASC or DESC order.');
+                }
+            }
+            $payload['sortBy'] = $sortBy;
+        }
+
+        return self::object($this->request('POST', 'records/query', ['json' => $payload]));
+    }
+
+    public function createTable(string $appId, array $definition): array
+    {
+        self::requireId($appId, 'app');
+        self::requireDefinitionString($definition, 'name', 'table');
+        self::requireDefinitionString($definition, 'singleRecordName', 'table');
+
+        return self::object($this->request('POST', 'tables', [
+            'query' => ['appId' => $appId],
+            'json' => $definition,
+        ]));
+    }
+
+    public function createField(string $tableId, array $definition): array
+    {
+        self::requireId($tableId, 'table');
+        self::requireDefinitionString($definition, 'label', 'field');
+        self::requireDefinitionString($definition, 'fieldType', 'field');
+
+        return self::object($this->request('POST', 'fields', [
+            'query' => ['tableId' => $tableId],
+            'json' => $definition,
+        ]));
+    }
+
+    public function createRelationship(string $childTableId, array $definition): array
+    {
+        self::requireId($childTableId, 'child table');
+        self::requireDefinitionString($definition, 'parentTableId', 'relationship');
+
+        return self::object($this->request('POST', sprintf('tables/%s/relationship', rawurlencode($childTableId)), [
+            'json' => $definition,
+        ]));
+    }
+
     public function upsertRecords(string $tableId, iterable $records, ?int $mergeFieldId = null, array $fieldsToReturn = []): array
     {
         if ('' === trim($tableId)) {
@@ -127,6 +221,38 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<int> $fieldIds
+     *
+     * @return list<int>
+     */
+    private static function positiveFieldIds(array $fieldIds): array
+    {
+        foreach ($fieldIds as $fieldId) {
+            if ($fieldId < 1) {
+                throw new \InvalidArgumentException('Quickbase field IDs must be positive integers.');
+            }
+        }
+
+        return $fieldIds;
+    }
+
+    private static function requireId(string $id, string $kind): void
+    {
+        if ('' === trim($id)) {
+            throw new \InvalidArgumentException(sprintf('The Quickbase %s ID cannot be empty.', $kind));
+        }
+    }
+
+    /** @param array<string, mixed> $definition */
+    private static function requireDefinitionString(array $definition, string $key, string $kind): void
+    {
+        $value = $definition[$key] ?? null;
+        if (!is_string($value) || '' === trim($value)) {
+            throw new \InvalidArgumentException(sprintf('The Quickbase %s definition requires a non-empty "%s".', $kind, $key));
+        }
     }
 
     /**

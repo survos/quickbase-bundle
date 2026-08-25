@@ -22,6 +22,16 @@ final readonly class QuickbaseAppRegistry
         return $this->apps[$nameOrId]['id'] ?? $nameOrId;
     }
 
+    public function resolveTable(string $nameOrId): string
+    {
+        $parts = explode('.', $nameOrId, 2);
+        if (2 !== count($parts)) {
+            return $nameOrId;
+        }
+
+        return $this->table($parts[0], $parts[1])['id'];
+    }
+
     /** @return array{id: string, fields: array<string, int>} */
     public function table(string $appName, string $tableName): array
     {

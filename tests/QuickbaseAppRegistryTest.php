@@ -27,6 +27,8 @@ final class QuickbaseAppRegistryTest extends TestCase
         self::assertSame('bwa6visdy', $registry->resolve('lions'));
         self::assertSame('bv4hfi7e8', $registry->resolve('rah'));
         self::assertSame('brawappid', $registry->resolve('brawappid'));
+        self::assertSame('bwa6visd6', $registry->resolveTable('lions.inventory'));
+        self::assertSame('brawtableid', $registry->resolveTable('brawtableid'));
         self::assertSame([
             'lions' => [
                 'id' => 'bwa6visdy',

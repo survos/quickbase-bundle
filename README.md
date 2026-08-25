@@ -49,14 +49,47 @@ The scoped HTTP client supplies the realm, authorization, content type, user age
 and base URI. API failures throw `QuickbaseApiException`, including Quickbase's `qb-api-ray`
 request identifier when available.
 
+## Provider-neutral record access
+
+The bundle also contributes a Quickbase adapter to `survos/record-store-bundle`. Keep credentials
+and the provider-native catalog in `survos_quickbase`, then map stable application, table, and field
+names for domain code:
+
+```yaml
+survos_record_store:
+    connections:
+        quickbase:
+            driver: quickbase
+    applications:
+        lions:
+            connection: quickbase
+            id: bwa6visdy
+            tables:
+                inventory:
+                    id: bwa6visd6
+                    fields:
+                        sku: 6
+                        name: 15
+```
+
+Use `RecordStoreRegistry` for portable schema reads, basic record queries, and upserts. Continue to
+use `QuickbaseClientInterface` for Quickbase query expressions and provider-specific schema work.
+
 ## Explore an app
 
 ```bash
 bin/console quickbase:apps
 bin/console quickbase:tables lions
 bin/console quickbase:tables APP_ID --json
-bin/console quickbase:fields TABLE_ID
+bin/console quickbase:fields lions.inventory
 bin/console quickbase:fields TABLE_ID --permissions --json
+bin/console quickbase:relationships lions.inventory
+bin/console quickbase:query lions.inventory --select=3,6,15 --top=20
+bin/console quickbase:query TABLE_ID --where="{'6'.EX.'SKU-123'}" --json
 ```
 
 These commands are read-only. They use the same scoped client and credentials as application code.
+
+`QuickbaseClientInterface` also exposes typed methods for record queries and for creating tables,
+fields, and relationships. Schema mutations are intentionally API-only for now; a future CLI will
+apply a declarative schema diff rather than issuing unreviewed one-off changes.
