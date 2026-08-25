@@ -6,7 +6,7 @@ namespace Survos\QuickbaseBundle\Exception;
 
 final class QuickbaseApiException extends \RuntimeException
 {
-    /** @param array<string, mixed>|null $response */
+    /** @param array<array-key, mixed>|null $response */
     public function __construct(
         string $message,
         public readonly int $statusCode,

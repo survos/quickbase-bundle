@@ -15,6 +15,33 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
     {
     }
 
+    public function tables(string $appId): array
+    {
+        if ('' === trim($appId)) {
+            throw new \InvalidArgumentException('The Quickbase app ID cannot be empty.');
+        }
+
+        return self::objectList($this->request('GET', 'tables', [
+            'query' => ['appId' => $appId],
+        ]));
+    }
+
+    public function fields(string $tableId, bool $includeFieldPermissions = false): array
+    {
+        if ('' === trim($tableId)) {
+            throw new \InvalidArgumentException('The Quickbase table ID cannot be empty.');
+        }
+
+        $query = ['tableId' => $tableId];
+        if ($includeFieldPermissions) {
+            // Quickbase documents this query value as the literal string "true";
+            // HttpClient's default boolean encoding (1/0) is rejected with HTTP 400.
+            $query['includeFieldPerms'] = 'true';
+        }
+
+        return self::objectList($this->request('GET', 'fields', ['query' => $query]));
+    }
+
     public function upsertRecords(string $tableId, iterable $records, ?int $mergeFieldId = null, array $fieldsToReturn = []): array
     {
         if ('' === trim($tableId)) {
@@ -37,10 +64,10 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
             $payload['fieldsToReturn'] = $fieldsToReturn;
         }
 
-        return $this->request('POST', 'records', ['json' => $payload]);
+        return self::object($this->request('POST', 'records', ['json' => $payload]));
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<array-key, mixed> */
     public function request(string $method, string $path, array $options = []): array
     {
         try {
@@ -59,12 +86,7 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
                 if (!is_array($value)) {
                     $decoded = ['data' => $value];
                 } else {
-                    foreach ($value as $key => $item) {
-                        if (!is_string($key)) {
-                            throw new \JsonException('Expected a JSON object from Quickbase.');
-                        }
-                        $decoded[$key] = $item;
-                    }
+                    $decoded = $value;
                 }
             } catch (\JsonException $exception) {
                 throw new QuickbaseApiException(
@@ -105,6 +127,50 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function objectList(array $value): array
+    {
+        $objects = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new \UnexpectedValueException('Quickbase returned a non-object item in a metadata list.');
+            }
+
+            $object = [];
+            foreach ($item as $key => $fieldValue) {
+                if (!is_string($key)) {
+                    throw new \UnexpectedValueException('Quickbase returned a metadata object with a non-string key.');
+                }
+                $object[$key] = $fieldValue;
+            }
+            $objects[] = $object;
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     *
+     * @return array<string, mixed>
+     */
+    private static function object(array $value): array
+    {
+        $object = [];
+        foreach ($value as $key => $fieldValue) {
+            if (!is_string($key)) {
+                throw new \UnexpectedValueException('Quickbase returned an object with a non-string key.');
+            }
+            $object[$key] = $fieldValue;
+        }
+
+        return $object;
     }
 
     /** @param array<string, list<string>> $headers */

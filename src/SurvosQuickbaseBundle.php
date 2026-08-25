@@ -30,6 +30,30 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
             ->scalarNode('token')->isRequired()->cannotBeEmpty()
                 ->info('Permanent Quickbase user token. Prefer an env-backed secret.')
             ->end()
+            ->arrayNode('apps')
+                ->info('Named Quickbase applications, keyed by local alias.')
+                ->useAttributeAsKey('name')
+                ->arrayPrototype()
+                    ->children()
+                        ->scalarNode('id')->isRequired()->cannotBeEmpty()->end()
+                        ->arrayNode('tables')
+                            ->useAttributeAsKey('name')
+                            ->arrayPrototype()
+                                ->children()
+                                    ->scalarNode('id')->isRequired()->cannotBeEmpty()->end()
+                                    ->arrayNode('fields')
+                                        ->useAttributeAsKey('name')
+                                        ->integerPrototype()->min(1)->end()
+                                        ->defaultValue([])
+                                    ->end()
+                                ->end()
+                            ->end()
+                            ->defaultValue([])
+                        ->end()
+                    ->end()
+                ->end()
+                ->defaultValue([])
+            ->end()
             ->scalarNode('base_uri')->defaultValue(self::DEFAULT_BASE_URI)->end()
             ->scalarNode('user_agent')->defaultValue('survos/quickbase-bundle')->end()
             ->floatNode('timeout')->defaultValue(30.0)->min(0.1)->end()
@@ -47,6 +71,9 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
             ->arg('$http', service('quickbase.client'))
             ->public();
         $services->alias(QuickbaseClientInterface::class, QuickbaseClient::class)->public();
+        $services->set(QuickbaseAppRegistry::class)
+            ->arg('$apps', $config['apps'])
+            ->public();
     }
 
     public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -64,7 +91,7 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
                             'Accept' => 'application/json',
                             'Content-Type' => 'application/json; charset=UTF-8',
                             'QB-Realm-Hostname' => self::stringConfig($config, 'realm', '%env(QUICKBASE_REALM)%'),
-                            'Authorization' => sprintf('QB-USER-TOKEN %s', self::stringConfig($config, 'token', '%env(QUICKBASE_USER_TOKEN)%')),
+                            'Authorization' => sprintf('QB-USER-TOKEN %s', self::stringConfig($config, 'token', '%env(QUICKBASE_API_KEY)%')),
                             'User-Agent' => self::stringConfig($config, 'user_agent', 'survos/quickbase-bundle'),
                         ],
                         'retry_failed' => [

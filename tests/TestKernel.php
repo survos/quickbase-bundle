@@ -29,6 +29,18 @@ final class TestKernel extends Kernel
             $container->loadFromExtension('survos_quickbase', [
                 'realm' => 'example.quickbase.com',
                 'token' => 'test-token',
+                'apps' => [
+                    'lions' => [
+                        'id' => 'bwa6visdy',
+                        'tables' => [
+                            'inventory' => [
+                                'id' => 'bwa6visd6',
+                                'fields' => ['record_id' => 3, 'sku' => 6, 'name' => 15],
+                            ],
+                        ],
+                    ],
+                    'rah' => ['id' => 'bv4hfi7e8'],
+                ],
             ]);
         });
     }

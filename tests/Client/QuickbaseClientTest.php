@@ -12,6 +12,29 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class QuickbaseClientTest extends TestCase
 {
+    public function testListsTablesForAnApp(): void
+    {
+        $response = new MockResponse('[{"id":"btable1","name":"Items"}]');
+        $client = new QuickbaseClient(new MockHttpClient($response, 'https://api.quickbase.test/v1/'));
+
+        $tables = $client->tables('bapp1');
+
+        self::assertSame([['id' => 'btable1', 'name' => 'Items']], $tables);
+        self::assertSame('GET', $response->getRequestMethod());
+        self::assertSame('https://api.quickbase.test/v1/tables?appId=bapp1', $response->getRequestUrl());
+    }
+
+    public function testListsFieldsForATableWithPermissions(): void
+    {
+        $response = new MockResponse('[{"id":6,"label":"SKU","fieldType":"text"}]');
+        $client = new QuickbaseClient(new MockHttpClient($response, 'https://api.quickbase.test/v1/'));
+
+        $fields = $client->fields('btable1', true);
+
+        self::assertSame([['id' => 6, 'label' => 'SKU', 'fieldType' => 'text']], $fields);
+        self::assertSame('https://api.quickbase.test/v1/fields?tableId=btable1&includeFieldPerms=true', $response->getRequestUrl());
+    }
+
     public function testUpsertNormalizesFieldValues(): void
     {
         $response = new MockResponse('{"metadata":{"createdRecordIds":[42]}}', ['http_code' => 200]);

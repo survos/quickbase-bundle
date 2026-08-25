@@ -6,6 +6,12 @@ namespace Survos\QuickbaseBundle\Contract;
 
 interface QuickbaseClientInterface
 {
+    /** @return list<array<string, mixed>> */
+    public function tables(string $appId): array;
+
+    /** @return list<array<string, mixed>> */
+    public function fields(string $tableId, bool $includeFieldPermissions = false): array;
+
     /**
      * @param iterable<array<int|string, mixed>> $records
      * @param list<int> $fieldsToReturn
@@ -16,7 +22,7 @@ interface QuickbaseClientInterface
     /**
      * @param array<string, mixed> $options
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public function request(string $method, string $path, array $options = []): array;
 }
