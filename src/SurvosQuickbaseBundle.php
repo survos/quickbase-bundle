@@ -9,6 +9,7 @@ use Survos\Kit\SurvosKitBundle;
 use Survos\QuickbaseBundle\Adapter\QuickbaseAdapterFactory;
 use Survos\QuickbaseBundle\Client\QuickbaseClient;
 use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
+use Survos\QuickbaseBundle\Schema\QuickbaseSchemaManager;
 use Survos\RecordStoreBundle\SurvosRecordStoreBundle;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -39,6 +40,10 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
                 ->arrayPrototype()
                     ->children()
                         ->scalarNode('id')->isRequired()->cannotBeEmpty()->end()
+                        ->booleanNode('readonly')
+                            ->defaultFalse()
+                            ->info('Mark this application as inspection-only for consumers such as SchemaSteward.')
+                        ->end()
                         ->arrayNode('tables')
                             ->useAttributeAsKey('name')
                             ->arrayPrototype()
@@ -74,8 +79,10 @@ final class SurvosQuickbaseBundle extends AbstractSurvosBundle
             ->arg('$http', service('quickbase.client'))
             ->public();
         $services->alias(QuickbaseClientInterface::class, QuickbaseClient::class)->public();
+        $services->set(QuickbaseSchemaManager::class)->public();
         $services->set(QuickbaseAppRegistry::class)
             ->arg('$apps', $config['apps'])
+            ->arg('$realm', $config['realm'])
             ->public();
         $services->set(QuickbaseAdapterFactory::class)
             ->tag('survos_record_store.adapter_factory');

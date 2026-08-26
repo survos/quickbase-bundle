@@ -1,7 +1,8 @@
 # survos/quickbase-bundle
 
 Symfony 8.1 integration for the [Quickbase JSON REST API](https://developer.quickbase.com/).
-The first vertical slice is record upsert, intended for publishing completed PriceIt workflow data.
+It supports record access, application schema inspection and materialization, and Quickbase Language
+(QBL) solution management for forms, form rules, roles, reports, and dashboards.
 
 ## Install
 
@@ -90,6 +91,56 @@ bin/console quickbase:query TABLE_ID --where="{'6'.EX.'SKU-123'}" --json
 
 These commands are read-only. They use the same scoped client and credentials as application code.
 
-`QuickbaseClientInterface` also exposes typed methods for record queries and for creating tables,
-fields, and relationships. Schema mutations are intentionally API-only for now; a future CLI will
-apply a declarative schema diff rather than issuing unreviewed one-off changes.
+## Materialize application schema
+
+REST-manageable schema can be exported to portable JSON and applied idempotently. The materializer
+matches tables and fields by stable names, creates relationships after both tables exist, and updates
+changed field properties without deleting data.
+
+```bash
+bin/console quickbase:schema:snapshot lions var/lions.schema.json
+bin/console quickbase:schema:materialize var/lions.schema.json --app=lions --yes
+
+# Omit --app to create the application as well as its tables.
+bin/console quickbase:schema:materialize var/lions.schema.json --yes
+```
+
+`QuickbaseClientInterface` exposes the corresponding typed app, table, field, relationship, record,
+and solution lifecycle methods. Its public `request()` method remains the forward-compatible escape
+hatch for newly released JSON endpoints.
+
+## Forms and complete solution schema
+
+Quickbase does not expose forms through its ordinary app/table REST resources. Forms, form rules,
+roles, reports, and dashboards are solution resources managed with QBL. The bundle treats exported
+QBL as the authoritative representation for those objects:
+
+```bash
+# Export the exact live solution, including forms.
+bin/console quickbase:qbl:export SOLUTION_ID var/solution.qbl.yaml
+
+# Build QBL from JSON/PHP-friendly data. Native references are represented as
+# {"!Ref": {"Field": "$Field_Photo"}} in JSON.
+bin/console quickbase:qbl:build resources/solution.json var/solution.qbl.yaml
+
+# Preview first, then apply the reviewed document.
+bin/console quickbase:qbl:changes SOLUTION_ID var/solution.qbl.yaml
+bin/console quickbase:qbl:apply SOLUTION_ID var/solution.qbl.yaml --yes
+```
+
+Application code can use `QblDocument::fromArray($definition)->toYaml()` directly. Unknown resource
+types and properties are preserved so a Quickbase QBL release does not force an immediate bundle
+upgrade.
+
+Solution APIs must be enabled by a realm administrator. The application must belong to a Solution,
+and the token user must own or contribute to that Solution. These are Quickbase authorization
+requirements; app-manager access alone is not sufficient.
+
+## Destructive operations
+
+App deletion requires both the app's ID and exact current name. The command fetches and verifies the
+name first, and does nothing unless `--yes` is supplied:
+
+```bash
+bin/console quickbase:app:delete APP_ID 'Exact App Name' --yes
+```

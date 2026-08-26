@@ -7,6 +7,8 @@ namespace Survos\QuickbaseBundle\Command;
 use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
 use Survos\QuickbaseBundle\Exception\QuickbaseApiException;
 use Survos\QuickbaseBundle\QuickbaseAppRegistry;
+use Survos\QuickbaseBundle\Qbl\QblDocument;
+use Survos\QuickbaseBundle\Schema\QuickbaseSchemaManager;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -18,7 +20,116 @@ final readonly class QuickbaseCommands
     public function __construct(
         private QuickbaseClientInterface $quickbase,
         private QuickbaseAppRegistry $apps,
+        private QuickbaseSchemaManager $schemas,
     ) {
+    }
+
+    #[AsCommand('quickbase:schema:snapshot', 'Export REST-manageable app schema as portable JSON')]
+    public function snapshot(
+        SymfonyStyle $io,
+        #[Argument('Configured app name or Quickbase application ID')] string $app,
+        #[Argument('Destination JSON file')] string $output,
+    ): int {
+        try {
+            $schema = $this->schemas->snapshot($this->apps->resolve($app));
+            self::writeFile($output, json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n");
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->success(sprintf('Wrote %d table definitions to %s.', count($schema['tables']), $output));
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:schema:materialize', 'Idempotently create or update an app from a schema snapshot')]
+    public function materialize(
+        SymfonyStyle $io,
+        #[Argument('Schema snapshot JSON file')] string $schemaFile,
+        #[Option('Configured app name or Quickbase application ID; omit to create an app')] ?string $app = null,
+        #[Option('Apply schema changes')] bool $yes = false,
+    ): int {
+        if (!$yes) {
+            $io->warning('No changes made. Pass --yes after reviewing the schema snapshot.');
+            return Command::SUCCESS;
+        }
+        $schema = self::readJsonFile($schemaFile);
+        try {
+            $result = $this->schemas->materialize($schema, null === $app ? null : $this->apps->resolve($app));
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->success(sprintf('Materialized app %s: %d created, %d updated.', $result['appId'], count($result['created']), count($result['updated'])));
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:qbl:export', 'Export forms, roles, dashboards, and other supported solution schema as QBL')]
+    public function exportQbl(
+        SymfonyStyle $io,
+        #[Argument('Quickbase solution ID or alias')] string $solution,
+        #[Argument('Destination YAML file')] string $output,
+        #[Option('QBL version', name: 'qbl-version')] string $qblVersion = '0.14',
+    ): int {
+        try {
+            self::writeFile($output, $this->quickbase->exportSolution($solution, $qblVersion));
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->success('QBL exported to '.$output.'.');
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:qbl:build', 'Build QBL YAML, including forms, from a PHP-friendly JSON definition')]
+    public function buildQbl(
+        SymfonyStyle $io,
+        #[Argument('JSON definition; use {"!Ref": {...}} for QBL references')] string $definition,
+        #[Argument('Destination QBL YAML file')] string $output,
+    ): int {
+        $document = QblDocument::fromArray(self::readJsonFile($definition));
+        self::writeFile($output, $document->toYaml());
+        $io->success('QBL built at '.$output.'.');
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:qbl:changes', 'Preview the changes a QBL document would apply')]
+    public function qblChanges(
+        SymfonyStyle $io,
+        #[Argument('Quickbase solution ID or alias')] string $solution,
+        #[Argument('QBL YAML file')] string $qblFile,
+        #[Option('QBL version', name: 'qbl-version')] string $qblVersion = '0.14',
+    ): int {
+        try {
+            $changes = $this->quickbase->solutionChanges($solution, self::readFile($qblFile), $qblVersion);
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->writeln(json_encode($changes, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:qbl:apply', 'Apply a QBL document, including forms, to an existing solution')]
+    public function applyQbl(
+        SymfonyStyle $io,
+        #[Argument('Quickbase solution ID or alias')] string $solution,
+        #[Argument('QBL YAML file')] string $qblFile,
+        #[Option('QBL version', name: 'qbl-version')] string $qblVersion = '0.14',
+        #[Option('Apply the update')] bool $yes = false,
+    ): int {
+        if (!$yes) {
+            $io->warning('No changes made. Run quickbase:qbl:changes first, then pass --yes.');
+            return Command::SUCCESS;
+        }
+        try {
+            $result = $this->quickbase->updateSolution($solution, self::readFile($qblFile), $qblVersion);
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        return Command::SUCCESS;
     }
 
     #[AsCommand('quickbase:apps', 'List configured Quickbase apps')]
@@ -40,6 +151,36 @@ final readonly class QuickbaseCommands
         $io->title('Configured Quickbase apps');
         $io->table(['Name', 'App ID'], $rows);
         $io->success(sprintf('%d app%s.', count($apps), 1 === count($apps) ? '' : 's'));
+
+        return Command::SUCCESS;
+    }
+
+    #[AsCommand('quickbase:app:delete', 'Delete a Quickbase app after verifying its current name')]
+    public function deleteApp(
+        SymfonyStyle $io,
+        #[Argument('Configured app name or Quickbase application ID')] string $app,
+        #[Argument('Exact current app name')] string $expectedName,
+        #[Option('Permanently delete the app')] bool $yes = false,
+    ): int {
+        $appId = $this->apps->resolve($app);
+        try {
+            $current = $this->quickbase->app($appId);
+            $currentName = $current['name'] ?? null;
+            if (!is_string($currentName) || $expectedName !== $currentName) {
+                $io->error(sprintf('App name mismatch: expected "%s", Quickbase returned "%s".', $expectedName, self::scalar($currentName)));
+
+                return Command::INVALID;
+            }
+            if (!$yes) {
+                $io->warning(sprintf('No changes made. Pass --yes to permanently delete "%s" (%s).', $currentName, $appId));
+
+                return Command::SUCCESS;
+            }
+            $this->quickbase->deleteApp($appId, $currentName);
+        } catch (QuickbaseApiException $exception) {
+            return $this->renderApiError($io, $exception);
+        }
+        $io->success(sprintf('Deleted Quickbase app "%s" (%s).', $currentName, $appId));
 
         return Command::SUCCESS;
     }
@@ -219,6 +360,38 @@ final readonly class QuickbaseCommands
         }
 
         return Command::FAILURE;
+    }
+
+    private static function writeFile(string $filename, string $contents): void
+    {
+        $directory = dirname($filename);
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            throw new \RuntimeException(sprintf('Unable to create directory "%s".', $directory));
+        }
+        if (false === file_put_contents($filename, $contents)) {
+            throw new \RuntimeException(sprintf('Unable to write "%s".', $filename));
+        }
+    }
+
+    private static function readFile(string $filename): string
+    {
+        $contents = file_get_contents($filename);
+        if (false === $contents) {
+            throw new \RuntimeException(sprintf('Unable to read "%s".', $filename));
+        }
+
+        return $contents;
+    }
+
+    /** @return array<string, mixed> */
+    private static function readJsonFile(string $filename): array
+    {
+        $schema = json_decode(self::readFile($filename), true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($schema)) {
+            throw new \UnexpectedValueException('The schema snapshot must contain a JSON object.');
+        }
+
+        return $schema;
     }
 
     private static function scalar(mixed $value): string

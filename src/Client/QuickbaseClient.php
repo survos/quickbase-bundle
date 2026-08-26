@@ -15,6 +15,39 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
     {
     }
 
+    public function createApp(array $definition): array
+    {
+        self::requireDefinitionString($definition, 'name', 'app');
+
+        return self::object($this->request('POST', 'apps', ['json' => $definition]));
+    }
+
+    public function app(string $appId): array
+    {
+        self::requireId($appId, 'app');
+
+        return self::object($this->request('GET', sprintf('apps/%s', rawurlencode($appId))));
+    }
+
+    public function updateApp(string $appId, array $definition): array
+    {
+        self::requireId($appId, 'app');
+
+        return self::object($this->request('POST', sprintf('apps/%s', rawurlencode($appId)), ['json' => $definition]));
+    }
+
+    public function deleteApp(string $appId, string $appName): array
+    {
+        self::requireId($appId, 'app');
+        if ('' === trim($appName)) {
+            throw new \InvalidArgumentException('The Quickbase app name confirmation cannot be empty.');
+        }
+
+        return self::object($this->request('DELETE', sprintf('apps/%s', rawurlencode($appId)), [
+            'json' => ['name' => $appName],
+        ]));
+    }
+
     public function tables(string $appId): array
     {
         if ('' === trim($appId)) {
@@ -62,6 +95,15 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
             'metadata' => self::object($metadata),
             'relationships' => self::objectList($relationships),
         ];
+    }
+
+    public function reports(string $tableId): array
+    {
+        self::requireId($tableId, 'table');
+
+        return self::objectList($this->request('GET', 'reports', [
+            'query' => ['tableId' => $tableId],
+        ]));
     }
 
     public function queryRecords(
@@ -114,6 +156,27 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         ]));
     }
 
+    public function updateTable(string $appId, string $tableId, array $definition): array
+    {
+        self::requireId($appId, 'app');
+        self::requireId($tableId, 'table');
+
+        return self::object($this->request('POST', sprintf('tables/%s', rawurlencode($tableId)), [
+            'query' => ['appId' => $appId],
+            'json' => $definition,
+        ]));
+    }
+
+    public function deleteTable(string $appId, string $tableId): array
+    {
+        self::requireId($appId, 'app');
+        self::requireId($tableId, 'table');
+
+        return self::object($this->request('DELETE', sprintf('tables/%s', rawurlencode($tableId)), [
+            'query' => ['appId' => $appId],
+        ]));
+    }
+
     public function createField(string $tableId, array $definition): array
     {
         self::requireId($tableId, 'table');
@@ -126,6 +189,27 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         ]));
     }
 
+    public function updateField(string $tableId, int $fieldId, array $definition): array
+    {
+        self::requireId($tableId, 'table');
+        self::requirePositiveInt($fieldId, 'field');
+
+        return self::object($this->request('POST', sprintf('fields/%d', $fieldId), [
+            'query' => ['tableId' => $tableId],
+            'json' => $definition,
+        ]));
+    }
+
+    public function deleteFields(string $tableId, array $fieldIds): array
+    {
+        self::requireId($tableId, 'table');
+
+        return self::object($this->request('DELETE', 'fields', [
+            'query' => ['tableId' => $tableId],
+            'json' => ['fieldIds' => self::positiveFieldIds($fieldIds)],
+        ]));
+    }
+
     public function createRelationship(string $childTableId, array $definition): array
     {
         self::requireId($childTableId, 'child table');
@@ -134,6 +218,24 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         return self::object($this->request('POST', sprintf('tables/%s/relationship', rawurlencode($childTableId)), [
             'json' => $definition,
         ]));
+    }
+
+    public function updateRelationship(string $childTableId, int $relationshipId, array $definition): array
+    {
+        self::requireId($childTableId, 'child table');
+        self::requirePositiveInt($relationshipId, 'relationship');
+
+        return self::object($this->request('POST', sprintf('tables/%s/relationship/%d', rawurlencode($childTableId), $relationshipId), [
+            'json' => $definition,
+        ]));
+    }
+
+    public function deleteRelationship(string $childTableId, int $relationshipId): array
+    {
+        self::requireId($childTableId, 'child table');
+        self::requirePositiveInt($relationshipId, 'relationship');
+
+        return self::object($this->request('DELETE', sprintf('tables/%s/relationship/%d', rawurlencode($childTableId), $relationshipId)));
     }
 
     public function upsertRecords(string $tableId, iterable $records, ?int $mergeFieldId = null, array $fieldsToReturn = []): array
@@ -161,8 +263,62 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
         return self::object($this->request('POST', 'records', ['json' => $payload]));
     }
 
+    public function deleteRecords(string $tableId, string $where): array
+    {
+        self::requireId($tableId, 'table');
+        if ('' === trim($where)) {
+            throw new \InvalidArgumentException('The Quickbase delete-records query cannot be empty.');
+        }
+
+        return self::object($this->request('DELETE', 'records', ['json' => ['from' => $tableId, 'where' => $where]]));
+    }
+
+    public function exportSolution(string $solutionId, string $qblVersion = '0.14'): string
+    {
+        self::requireId($solutionId, 'solution');
+
+        return $this->requestRaw('GET', sprintf('solutions/%s', rawurlencode($solutionId)), [
+            'headers' => ['QBL-Version' => $qblVersion, 'Accept' => 'application/yaml'],
+        ]);
+    }
+
+    public function createSolution(string $qbl, string $qblVersion = '0.14'): array
+    {
+        return self::object($this->request('POST', 'solutions', self::qblOptions($qbl, $qblVersion)));
+    }
+
+    public function updateSolution(string $solutionId, string $qbl, string $qblVersion = '0.14'): array
+    {
+        self::requireId($solutionId, 'solution');
+
+        return self::object($this->request('POST', sprintf('solutions/%s', rawurlencode($solutionId)), self::qblOptions($qbl, $qblVersion)));
+    }
+
+    public function solutionChanges(string $solutionId, string $qbl, string $qblVersion = '0.14'): array
+    {
+        self::requireId($solutionId, 'solution');
+
+        return self::object($this->request('POST', sprintf('solutions/%s/changes', rawurlencode($solutionId)), self::qblOptions($qbl, $qblVersion)));
+    }
+
     /** @return array<array-key, mixed> */
     public function request(string $method, string $path, array $options = []): array
+    {
+        $content = $this->requestRaw($method, $path, $options);
+        if ('' === $content) {
+            return [];
+        }
+
+        try {
+            $value = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new QuickbaseApiException('Quickbase returned a non-JSON success response.', 200, previous: $exception);
+        }
+
+        return is_array($value) ? $value : ['data' => $value];
+    }
+
+    public function requestRaw(string $method, string $path, array $options = []): string
     {
         try {
             $response = $this->http->request($method, ltrim($path, '/'), $options);
@@ -182,18 +338,13 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
                 } else {
                     $decoded = $value;
                 }
-            } catch (\JsonException $exception) {
-                throw new QuickbaseApiException(
-                    sprintf('Quickbase returned invalid JSON (HTTP %d).', $statusCode),
-                    $statusCode,
-                    self::firstHeader($headers, 'qb-api-ray'),
-                    previous: $exception,
-                );
+            } catch (\JsonException) {
+                $decoded = [];
             }
         }
 
         if ($statusCode < 200 || $statusCode >= 300) {
-            $message = $decoded['message'] ?? $decoded['description'] ?? sprintf('Quickbase request failed with HTTP %d.', $statusCode);
+            $message = $decoded['message'] ?? $decoded['description'] ?? self::nonJsonError($content, $statusCode);
             throw new QuickbaseApiException(
                 is_string($message) ? $message : sprintf('Quickbase request failed with HTTP %d.', $statusCode),
                 $statusCode,
@@ -202,7 +353,30 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
             );
         }
 
-        return $decoded;
+        return $content;
+    }
+
+    /** @return array<string, mixed> */
+    private static function qblOptions(string $qbl, string $qblVersion): array
+    {
+        if ('' === trim($qbl)) {
+            throw new \InvalidArgumentException('The QBL document cannot be empty.');
+        }
+
+        return [
+            'headers' => ['QBL-Version' => $qblVersion, 'Content-Type' => 'application/yaml', 'Accept' => 'application/json'],
+            'body' => $qbl,
+        ];
+    }
+
+    private static function nonJsonError(string $content, int $statusCode): string
+    {
+        $plain = trim(strip_tags($content));
+        $plain = preg_replace('/\s+/', ' ', $plain) ?? '';
+
+        return '' === $plain
+            ? sprintf('Quickbase request failed with HTTP %d.', $statusCode)
+            : sprintf('Quickbase request failed with HTTP %d: %s', $statusCode, mb_strimwidth($plain, 0, 300, '…'));
     }
 
     /**
@@ -243,6 +417,13 @@ final readonly class QuickbaseClient implements QuickbaseClientInterface
     {
         if ('' === trim($id)) {
             throw new \InvalidArgumentException(sprintf('The Quickbase %s ID cannot be empty.', $kind));
+        }
+    }
+
+    private static function requirePositiveInt(int $id, string $kind): void
+    {
+        if ($id < 1) {
+            throw new \InvalidArgumentException(sprintf('The Quickbase %s ID must be positive.', $kind));
         }
     }
 

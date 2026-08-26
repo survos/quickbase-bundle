@@ -12,6 +12,34 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class QuickbaseClientTest extends TestCase
 {
+    public function testCreatesUpdatesAndDeletesAnApp(): void
+    {
+        $responses = [
+            new MockResponse('{"id":"bapp1","name":"Lions"}'),
+            new MockResponse('{"id":"bapp1","name":"Lions Service"}'),
+            new MockResponse('{"deletedAppId":"bapp1"}'),
+        ];
+        $client = new QuickbaseClient(new MockHttpClient($responses, 'https://api.quickbase.test/v1/'));
+
+        self::assertSame('bapp1', $client->createApp(['name' => 'Lions'])['id']);
+        self::assertSame('Lions Service', $client->updateApp('bapp1', ['name' => 'Lions Service'])['name']);
+        self::assertSame('bapp1', $client->deleteApp('bapp1', 'Lions Service')['deletedAppId']);
+
+        self::assertSame('POST', $responses[0]->getRequestMethod());
+        self::assertSame('POST', $responses[1]->getRequestMethod());
+        self::assertSame('DELETE', $responses[2]->getRequestMethod());
+        self::assertStringContainsString('"name":"Lions Service"', $responses[2]->getRequestOptions()['body']);
+    }
+
+    public function testGetsAppMetadata(): void
+    {
+        $response = new MockResponse('{"id":"bapp1","name":"Lions"}');
+        $client = new QuickbaseClient(new MockHttpClient($response, 'https://api.quickbase.test/v1/'));
+
+        self::assertSame('Lions', $client->app('bapp1')['name']);
+        self::assertSame('https://api.quickbase.test/v1/apps/bapp1', $response->getRequestUrl());
+    }
+
     public function testListsTablesForAnApp(): void
     {
         $response = new MockResponse('[{"id":"btable1","name":"Items"}]');
@@ -48,6 +76,45 @@ final class QuickbaseClientTest extends TestCase
         ], $relationships);
         self::assertSame('GET', $response->getRequestMethod());
         self::assertSame('https://api.quickbase.test/v1/tables/bchild/relationships?skip=10', $response->getRequestUrl());
+    }
+
+    public function testListsReportsForATable(): void
+    {
+        $response = new MockResponse('[{"id":"1","name":"All equipment","type":"table"}]');
+        $client = new QuickbaseClient(new MockHttpClient($response, 'https://api.quickbase.test/v1/'));
+
+        $reports = $client->reports('btable1');
+
+        self::assertSame('All equipment', $reports[0]['name']);
+        self::assertSame('https://api.quickbase.test/v1/reports?tableId=btable1', $response->getRequestUrl());
+    }
+
+    public function testExportsAndUpdatesQblSolutions(): void
+    {
+        $responses = [
+            new MockResponse("Version: 0.14\nResources: {}\n", ['response_headers' => ['content-type: application/yaml']]),
+            new MockResponse('{"solutionId":"solution-1"}'),
+            new MockResponse('{"changes":[]}'),
+        ];
+        $client = new QuickbaseClient(new MockHttpClient($responses, 'https://api.quickbase.test/v1/'));
+
+        $qbl = $client->exportSolution('solution-1');
+        self::assertStringStartsWith('Version: 0.14', $qbl);
+        self::assertSame('solution-1', $client->updateSolution('solution-1', $qbl)['solutionId']);
+        self::assertSame([], $client->solutionChanges('solution-1', $qbl)['changes']);
+        self::assertStringContainsString('QBL-Version: 0.14', implode("\n", $responses[0]->getRequestOptions()['headers']));
+        self::assertStringContainsString('Version: 0.14', $responses[1]->getRequestOptions()['body']);
+    }
+
+    public function testPreservesUsefulNonJsonErrorText(): void
+    {
+        $client = new QuickbaseClient(new MockHttpClient(
+            new MockResponse('<html><body>Forbidden by realm policy</body></html>', ['http_code' => 403]),
+            'https://api.quickbase.test/v1/',
+        ));
+
+        $this->expectExceptionMessage('HTTP 403: Forbidden by realm policy');
+        $client->app('bapp1');
     }
 
     public function testQueriesRecordsWithPaginationAndSorting(): void
