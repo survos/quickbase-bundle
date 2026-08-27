@@ -6,7 +6,7 @@ namespace Survos\QuickbaseBundle\Tests;
 
 use Survos\Kit\SurvosKitBundle;
 use Survos\QuickbaseBundle\SurvosQuickbaseBundle;
-use Survos\RecordStore\SurvosRecordStoreBundle;
+use Survos\RecordStoreBundle\SurvosRecordStoreBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
