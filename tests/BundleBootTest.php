@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Survos\QuickbaseBundle\Tests;
 
-use Survos\QuickbaseBundle\Client\QuickbaseClient;
-use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
-use Survos\QuickbaseBundle\QuickbaseAppRegistry;
+use Survos\Quickbase\Client\QuickbaseClient;
+use Survos\Quickbase\Contract\QuickbaseClientInterface;
+use Survos\Quickbase\QuickbaseAppRegistry;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\HttpKernel\KernelInterface;
 

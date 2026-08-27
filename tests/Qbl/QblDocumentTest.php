@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Survos\QuickbaseBundle\Tests\Qbl;
 
 use PHPUnit\Framework\TestCase;
-use Survos\QuickbaseBundle\Qbl\QblDocument;
+use Survos\Quickbase\Qbl\QblDocument;
 use Symfony\Component\Yaml\Tag\TaggedValue;
 
 final class QblDocumentTest extends TestCase

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Survos\QuickbaseBundle\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Survos\QuickbaseBundle\QuickbaseAppRegistry;
+use Survos\Quickbase\QuickbaseAppRegistry;
 
 final class QuickbaseAppRegistryTest extends TestCase
 {

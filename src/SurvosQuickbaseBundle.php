@@ -6,11 +6,11 @@ namespace Survos\QuickbaseBundle;
 
 use Survos\Kit\AbstractSurvosBundle;
 use Survos\Kit\SurvosKitBundle;
-use Survos\QuickbaseBundle\Adapter\QuickbaseAdapterFactory;
-use Survos\QuickbaseBundle\Client\QuickbaseClient;
-use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
-use Survos\QuickbaseBundle\Schema\QuickbaseSchemaManager;
-use Survos\RecordStoreBundle\SurvosRecordStoreBundle;
+use Survos\Quickbase\Adapter\QuickbaseAdapterFactory;
+use Survos\Quickbase\Client\QuickbaseClient;
+use Survos\Quickbase\Contract\QuickbaseClientInterface;
+use Survos\Quickbase\Schema\QuickbaseSchemaManager;
+use Survos\RecordStore\SurvosRecordStoreBundle;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Kernel\RequiredBundle;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Survos\QuickbaseBundle\Command;
 
-use Survos\QuickbaseBundle\Contract\QuickbaseClientInterface;
-use Survos\QuickbaseBundle\Exception\QuickbaseApiException;
-use Survos\QuickbaseBundle\QuickbaseAppRegistry;
-use Survos\QuickbaseBundle\Qbl\QblDocument;
-use Survos\QuickbaseBundle\Schema\QuickbaseSchemaManager;
+use Survos\Quickbase\Contract\QuickbaseClientInterface;
+use Survos\Quickbase\Exception\QuickbaseApiException;
+use Survos\Quickbase\QuickbaseAppRegistry;
+use Survos\Quickbase\Qbl\QblDocument;
+use Survos\Quickbase\Schema\QuickbaseSchemaManager;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;

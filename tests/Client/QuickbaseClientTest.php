@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Survos\QuickbaseBundle\Tests\Client;
 
 use PHPUnit\Framework\TestCase;
-use Survos\QuickbaseBundle\Client\QuickbaseClient;
-use Survos\QuickbaseBundle\Exception\QuickbaseApiException;
+use Survos\Quickbase\Client\QuickbaseClient;
+use Survos\Quickbase\Exception\QuickbaseApiException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
