@@ -11,6 +11,7 @@
     "type": "symfony-bundle",
     "require": {
         "php": "^8.5",
+        "survos/grist-php": "^2.24",
         "survos/kit-bundle": "^2.6",
         "survos/quickbase-php": "^2.24",
         "survos/record-store": "^2.24",

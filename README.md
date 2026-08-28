@@ -4,6 +4,8 @@ Symfony 8.1 integration for the [Quickbase JSON REST API](https://developer.quic
 It supports record access, application schema inspection and materialization, and Quickbase Language
 (QBL) solution management for forms, form rules, roles, reports, and dashboards.
 
+Converting an application to Grist: [docs/to-grist.md](docs/to-grist.md).
+
 ## Install
 
 ```bash
