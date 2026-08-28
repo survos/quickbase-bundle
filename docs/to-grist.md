@@ -12,14 +12,15 @@ bin/console quickbase:to-grist lions-ai --dry-run
 bin/console quickbase:to-grist lions-ai --workspace=3
 
 # Schema and rows, into a document that already exists.
-bin/console quickbase:to-grist lions-ai --doc=6xcrwpm9DWyA4WRUiQZEHu --with-data
+bin/console quickbase:to-grist lions-ai --doc=chijal --with-data       # configured application
+bin/console quickbase:to-grist lions-ai --doc=6xcrwpm9DW... --with-data  # or a raw document id
 ```
 
 | Option | |
 |---|---|
-| `--doc` | existing Grist document id; omit to create one |
+| `--doc` | a configured record-store application name — which already carries its connection and document id — or a raw Grist document id. Omit to create a new document |
 | `--workspace` | Grist workspace to create the new document in (`GET /api/orgs/{org}/workspaces`) |
-| `--connection` | record-store connection with driver `grist`; inferred when only one is configured |
+| `--connection` | record-store connection with driver `grist`; inferred when exactly one is configured, and unnecessary when `--doc` names an application |
 | `--dry-run` | print the plan and the type decisions, write nothing |
 | `--with-data` | copy rows as well as schema |
 | `--tables` | comma-separated Quickbase table names or ids |

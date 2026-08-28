@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Survos\QuickbaseBundle\Command;
 
 use Survos\Grist\Adapter\GristAdapterFactory;
+use Survos\Grist\Contract\GristClientInterface;
 use Survos\Grist\Service\GristDocument;
 use Survos\Quickbase\Adapter\QuickbaseAdapter;
 use Survos\Quickbase\Contract\QuickbaseClientInterface;
@@ -51,7 +52,7 @@ final readonly class QuickbaseGristCommands
     public function toGrist(
         SymfonyStyle $io,
         #[Argument('Configured Quickbase app alias or app id')] string $app,
-        #[Option('Existing Grist document id; omit to create a new document')] ?string $doc = null,
+        #[Option('Configured record-store application name, or a raw Grist document id; omit to create a new document')] ?string $doc = null,
         #[Option('Record-store connection with driver "grist"')] ?string $connection = null,
         #[Option('Grist workspace id to create the new document in')] ?string $workspace = null,
         #[Option('Name for the new document; defaults to the Quickbase app name')] ?string $name = null,
@@ -250,8 +251,24 @@ final readonly class QuickbaseGristCommands
         ?string $workspace,
         string $name,
     ): GristDocument {
-        $client = (new GristAdapterFactory($this->http))
-            ->client($this->stores->connectionConfiguration($connection ?? $this->gristConnection()));
+        // A configured application already names both the connection and the document it
+        // points at -- that is what configuring one is for. So `--doc=chijal` beats copying a
+        // 22-character document id around, and the id stops being something to keep track of.
+        if (null !== $doc && in_array($doc, $this->stores->applicationNames(), true)) {
+            $application = $this->stores->application($doc);
+            $provider = $this->stores->adapterFor($application)->provider();
+            if ('grist' !== $provider) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Record-store application "%s" uses the "%s" provider, not Grist.',
+                    $doc,
+                    $provider,
+                ));
+            }
+
+            return new GristDocument($this->gristClient($application->connection), $application->id);
+        }
+
+        $client = $this->gristClient($connection ?? $this->gristConnection());
 
         if (null !== $doc) {
             return new GristDocument($client, $doc);
@@ -271,17 +288,22 @@ final readonly class QuickbaseGristCommands
         return $document;
     }
 
-    /** The single configured Grist connection, when there is exactly one to be unambiguous about. */
+    private function gristClient(string $connection): GristClientInterface
+    {
+        return (new GristAdapterFactory($this->http))
+            ->client($this->stores->connectionConfiguration($connection));
+    }
+
+    /**
+     * The single configured Grist connection, when there is exactly one to be unambiguous about.
+     *
+     * Asks the registry which *connections* use the driver rather than deriving it from the
+     * configured applications: an app that creates documents has no application to point at,
+     * so a connection-only configuration is the normal case here, not an edge case.
+     */
     private function gristConnection(): string
     {
-        $grist = [];
-        foreach ($this->stores->applicationNames() as $application) {
-            $reference = $this->stores->application($application);
-            if ('grist' === $this->stores->adapterFor($reference)->provider()) {
-                $grist[$reference->connection] = true;
-            }
-        }
-        $names = array_keys($grist);
+        $names = $this->stores->connectionsByDriver('grist');
 
         return match (count($names)) {
             1 => $names[0],
